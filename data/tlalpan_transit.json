@@ -1,0 +1,181 @@
+{
+  "light_rail": {
+    "line": "Tren Ligero",
+    "route": "Taxqueña - Xochimilco",
+    "system": "LIGHT_RAIL",
+    "stations": [
+      {
+        "id": "tl_01",
+        "name": "Taxqueña",
+        "lat": 19.3258,
+        "lon": -99.1872,
+        "order": 1
+      },
+      {
+        "id": "tl_02",
+        "name": "Registro Federal",
+        "lat": 19.3195,
+        "lon": -99.1825,
+        "order": 2
+      },
+      {
+        "id": "tl_03",
+        "name": "Estadio Azteca",
+        "lat": 19.3028,
+        "lon": -99.1506,
+        "order": 3
+      },
+      {
+        "id": "tl_04",
+        "name": "Tlalpan",
+        "lat": 19.2897,
+        "lon": -99.1658,
+        "order": 4
+      },
+      {
+        "id": "tl_05",
+        "name": "Huipulco",
+        "lat": 19.2947,
+        "lon": -99.1428,
+        "order": 5
+      },
+      {
+        "id": "tl_06",
+        "name": "Xotepingo",
+        "lat": 19.2825,
+        "lon": -99.1356,
+        "order": 6
+      },
+      {
+        "id": "tl_07",
+        "name": "Nativitas",
+        "lat": 19.2758,
+        "lon": -99.1289,
+        "order": 7
+      },
+      {
+        "id": "tl_08",
+        "name": "Xochimilco",
+        "lat": 19.2577,
+        "lon": -99.1036,
+        "order": 8
+      }
+    ],
+    "frequency_minutes": 8,
+    "avg_speed_kmh": 25,
+    "operating_hours": {
+      "weekday": {"start": "05:00", "end": "00:00"},
+      "weekend": {"start": "06:00", "end": "00:00"}
+    }
+  },
+  "rtp_lines": [
+    {
+      "line": "RTP-1",
+      "name": "Tlalpan Centro - Metro Taxqueña",
+      "system": "RTP",
+      "stops": [
+        {
+          "id": "rtp1_01",
+          "name": "Tlalpan Centro",
+          "lat": 19.2897,
+          "lon": -99.1658,
+          "order": 1
+        },
+        {
+          "id": "rtp1_02",
+          "name": "Av. Insurgentes Sur - Periférico",
+          "lat": 19.3025,
+          "lon": -99.1725,
+          "order": 2
+        },
+        {
+          "id": "rtp1_03",
+          "name": "Metro Taxqueña",
+          "lat": 19.3258,
+          "lon": -99.1872,
+          "order": 3
+        }
+      ],
+      "frequency_minutes": 15,
+      "avg_speed_kmh": 18
+    },
+    {
+      "line": "RTP-2",
+      "name": "Tlalpan - Xochimilco",
+      "system": "RTP",
+      "stops": [
+        {
+          "id": "rtp2_01",
+          "name": "Tlalpan Centro",
+          "lat": 19.2897,
+          "lon": -99.1658,
+          "order": 1
+        },
+        {
+          "id": "rtp2_02",
+          "name": "Huipulco",
+          "lat": 19.2947,
+          "lon": -99.1428,
+          "order": 2
+        },
+        {
+          "id": "rtp2_03",
+          "name": "Xochimilco Centro",
+          "lat": 19.2577,
+          "lon": -99.1036,
+          "order": 3
+        }
+      ],
+      "frequency_minutes": 20,
+      "avg_speed_kmh": 16
+    },
+    {
+      "line": "RTP-3",
+      "name": "Pedregal - Estadio Azteca",
+      "system": "RTP",
+      "stops": [
+        {
+          "id": "rtp3_01",
+          "name": "Pedregal de San Ángel",
+          "lat": 19.3156,
+          "lon": -99.1989,
+          "order": 1
+        },
+        {
+          "id": "rtp3_02",
+          "name": "Av. Insurgentes Sur",
+          "lat": 19.3095,
+          "lon": -99.1825,
+          "order": 2
+        },
+        {
+          "id": "rtp3_03",
+          "name": "Estadio Azteca",
+          "lat": 19.3028,
+          "lon": -99.1506,
+          "order": 3
+        }
+      ],
+      "frequency_minutes": 18,
+      "avg_speed_kmh": 17
+    }
+  ],
+  "metadata": {
+    "last_updated": "2026-06-06",
+    "source": "Datos estimados para Tlalpan - ConciencIA",
+    "coverage_area": {
+      "name": "Tlalpan, CDMX",
+      "bounds": {
+        "north": 19.35,
+        "south": 19.25,
+        "east": -99.10,
+        "west": -99.20
+      }
+    },
+    "notes": [
+      "Frecuencias son aproximadas y pueden variar según hora del día",
+      "Velocidades promedio incluyen paradas",
+      "Datos deben validarse con información oficial de RTP y STE"
+    ]
+  }
+}
