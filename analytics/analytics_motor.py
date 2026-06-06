@@ -72,17 +72,17 @@ def construir_matrices_predictivas(df_c5, df_rtp, df_elec):
     lista_dfs = []
     
     # Validamos y estandarizamos columnas del CSV limpio de RTP
-    if not df_rtp.empty and all(col in df_rtp.columns for col in ['dia', 'mes', 'afluencia']):
-        lista_dfs.append(df_rtp[['mes', 'dia', 'afluencia']])
+    if not df_rtp.empty and all(col in df_rtp.columns for col in ['dia', 'mes_numerico', 'afluencia']):
+        lista_dfs.append(df_rtp[['mes_numerico', 'dia', 'afluencia']])
         
     # Validamos y estandarizamos columnas del CSV limpio de Eléctricos
-    if not df_elec.empty and all(col in df_elec.columns for col in ['dia', 'mes', 'afluencia']):
-        lista_dfs.append(df_elec[['mes', 'dia', 'afluencia']])
+    if not df_elec.empty and all(col in df_elec.columns for col in ['dia', 'mes_numerico', 'afluencia']):
+        lista_dfs.append(df_elec[['mes_numerico', 'dia', 'afluencia']])
         
     if lista_dfs:
         df_unificado = pd.concat(lista_dfs, ignore_index=True)
         # Obtenemos el promedio histórico diario exacto para cada día del mes
-        matriz_saturacion_diaria = df_unificado.groupby(['mes', 'dia'])['afluencia'].mean().to_dict()
+        matriz_saturacion_diaria = df_unificado.groupby(['mes_numerico', 'dia'])['afluencia'].mean().to_dict()
         
     return matriz_riesgo, matriz_saturacion_diaria
 
