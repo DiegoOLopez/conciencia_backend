@@ -70,8 +70,6 @@ class RouteResponse(BaseModel):
     """Respuesta completa con las 3 mejores rutas."""
     routes: list[RouteOption] = Field(
         description="Las 3 mejores rutas ordenadas por relevancia",
-        min_length=1,
-        max_length=3,
     )
     request_id: str = Field(description="ID anónimo de la solicitud (UUID)")
     computed_at: datetime = Field(description="Timestamp de la computación")

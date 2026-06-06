@@ -171,7 +171,187 @@ class UrbanDataAgent(BaseAgent):
                 })
 
         # ======================================================================
-        # 3. Rutas vehiculares (si se permite)
+        # 3. Rutas con Tren Ligero (Tlalpan)
+        # ======================================================================
+        if TransportMode.LIGHT_RAIL in allowed_modes:
+            self.logger.info("Buscando rutas con Tren Ligero...")
+            light_rail_route = tlalpan_transit_service.get_light_rail_route(
+                origin_lat, origin_lon, dest_lat, dest_lon
+            )
+
+            if light_rail_route:
+                origin_st = light_rail_route["origin_station"]
+                dest_st = light_rail_route["dest_station"]
+                transit_info = light_rail_route["transit"]
+
+                segments = []
+
+                # Segmento 1: Caminar al Tren Ligero
+                if light_rail_route["walk_to_km"] > 0.05:
+                    osrm_w1 = await osm_service.get_walking_route(
+                        origin_lat, origin_lon, origin_st["lat"], origin_st["lon"]
+                    )
+                    r_w1 = OSMService.extract_routes_from_osrm(osrm_w1)
+                    walk_to_coords = r_w1[0]["coordinates"] if r_w1 else [
+                        [origin_lat, origin_lon],
+                        [origin_st["lat"], origin_st["lon"]],
+                    ]
+                    segments.append({
+                        "mode": TransportMode.WALK.value,
+                        "coordinates": walk_to_coords,
+                        "distance_km": light_rail_route["walk_to_km"],
+                        "duration_minutes": light_rail_route["walk_to_minutes"],
+                        "description": f"Caminar a estación {origin_st['name']}",
+                    })
+
+                # Segmento 2: Tren Ligero
+                osrm_t = await osm_service.get_driving_route(
+                    origin_st["lat"], origin_st["lon"], dest_st["lat"], dest_st["lon"]
+                )
+                r_t = OSMService.extract_routes_from_osrm(osrm_t)
+                transit_coords = r_t[0]["coordinates"] if r_t else [
+                    [origin_st["lat"], origin_st["lon"]],
+                    [dest_st["lat"], dest_st["lon"]],
+                ]
+                
+                segments.append({
+                    "mode": TransportMode.LIGHT_RAIL.value,
+                    "coordinates": transit_coords,
+                    "distance_km": transit_info["distance_km"],
+                    "duration_minutes": transit_info["travel_time_minutes"],
+                    "description": (
+                        f"{transit_info['line']}: {origin_st['name']} → {dest_st['name']} "
+                        f"({transit_info['num_stops']} estaciones)"
+                    ),
+                    "transit_line": transit_info["line"],
+                    "transit_stops": transit_info["num_stops"],
+                })
+
+                # Segmento 3: Caminar desde el Tren Ligero
+                if light_rail_route["walk_from_km"] > 0.05:
+                    osrm_w2 = await osm_service.get_walking_route(
+                        dest_st["lat"], dest_st["lon"], dest_lat, dest_lon
+                    )
+                    r_w2 = OSMService.extract_routes_from_osrm(osrm_w2)
+                    walk_from_coords = r_w2[0]["coordinates"] if r_w2 else [
+                        [dest_st["lat"], dest_st["lon"]],
+                        [dest_lat, dest_lon],
+                    ]
+                    segments.append({
+                        "mode": TransportMode.WALK.value,
+                        "coordinates": walk_from_coords,
+                        "distance_km": light_rail_route["walk_from_km"],
+                        "duration_minutes": light_rail_route["walk_from_minutes"],
+                        "description": f"Caminar desde estación {dest_st['name']} al destino",
+                    })
+
+                total_walk = light_rail_route["walk_to_km"] + light_rail_route["walk_from_km"]
+                total_dist = total_walk + transit_info["distance_km"]
+                modes_used = list({s["mode"] for s in segments})
+
+                candidate_routes.append({
+                    "type": "light_rail",
+                    "id": "light_rail_0",
+                    "modes": modes_used,
+                    "segments": segments,
+                    "total_distance_km": round(total_dist, 2),
+                    "total_time_minutes": light_rail_route["total_time_minutes"],
+                    "walk_km": round(total_walk, 2),
+                    "transfers": 0,
+                })
+
+        # ======================================================================
+        # 4. Rutas con RTP (Red de Transporte de Pasajeros - Tlalpan)
+        # ======================================================================
+        if TransportMode.RTP in allowed_modes:
+            self.logger.info("Buscando rutas con RTP...")
+            rtp_routes = tlalpan_transit_service.get_rtp_routes(
+                origin_lat, origin_lon, dest_lat, dest_lon
+            )
+
+            for idx, rtp_route in enumerate(rtp_routes[:2]):  # Máximo 2 rutas RTP
+                origin_st = rtp_route["origin_station"]
+                dest_st = rtp_route["dest_station"]
+                transit_info = rtp_route["transit"]
+
+                segments = []
+
+                # Segmento 1: Caminar a la parada RTP
+                if rtp_route["walk_to_km"] > 0.05:
+                    osrm_w1 = await osm_service.get_walking_route(
+                        origin_lat, origin_lon, origin_st["lat"], origin_st["lon"]
+                    )
+                    r_w1 = OSMService.extract_routes_from_osrm(osrm_w1)
+                    walk_to_coords = r_w1[0]["coordinates"] if r_w1 else [
+                        [origin_lat, origin_lon],
+                        [origin_st["lat"], origin_st["lon"]],
+                    ]
+                    segments.append({
+                        "mode": TransportMode.WALK.value,
+                        "coordinates": walk_to_coords,
+                        "distance_km": rtp_route["walk_to_km"],
+                        "duration_minutes": rtp_route["walk_to_minutes"],
+                        "description": f"Caminar a parada {origin_st['name']}",
+                    })
+
+                # Segmento 2: RTP
+                osrm_t = await osm_service.get_driving_route(
+                    origin_st["lat"], origin_st["lon"], dest_st["lat"], dest_st["lon"]
+                )
+                r_t = OSMService.extract_routes_from_osrm(osrm_t)
+                transit_coords = r_t[0]["coordinates"] if r_t else [
+                    [origin_st["lat"], origin_st["lon"]],
+                    [dest_st["lat"], dest_st["lon"]],
+                ]
+                
+                segments.append({
+                    "mode": TransportMode.RTP.value,
+                    "coordinates": transit_coords,
+                    "distance_km": transit_info["distance_km"],
+                    "duration_minutes": transit_info["travel_time_minutes"],
+                    "description": (
+                        f"{transit_info['line']}: {origin_st['name']} → {dest_st['name']} "
+                        f"({transit_info['num_stops']} paradas)"
+                    ),
+                    "transit_line": transit_info["line"],
+                    "transit_stops": transit_info["num_stops"],
+                })
+
+                # Segmento 3: Caminar desde la parada RTP
+                if rtp_route["walk_from_km"] > 0.05:
+                    osrm_w2 = await osm_service.get_walking_route(
+                        dest_st["lat"], dest_st["lon"], dest_lat, dest_lon
+                    )
+                    r_w2 = OSMService.extract_routes_from_osrm(osrm_w2)
+                    walk_from_coords = r_w2[0]["coordinates"] if r_w2 else [
+                        [dest_st["lat"], dest_st["lon"]],
+                        [dest_lat, dest_lon],
+                    ]
+                    segments.append({
+                        "mode": TransportMode.WALK.value,
+                        "coordinates": walk_from_coords,
+                        "distance_km": rtp_route["walk_from_km"],
+                        "duration_minutes": rtp_route["walk_from_minutes"],
+                        "description": f"Caminar desde parada {dest_st['name']} al destino",
+                    })
+
+                total_walk = rtp_route["walk_to_km"] + rtp_route["walk_from_km"]
+                total_dist = total_walk + transit_info["distance_km"]
+                modes_used = list({s["mode"] for s in segments})
+
+                candidate_routes.append({
+                    "type": "rtp",
+                    "id": f"rtp_{idx}",
+                    "modes": modes_used,
+                    "segments": segments,
+                    "total_distance_km": round(total_dist, 2),
+                    "total_time_minutes": rtp_route["total_time_minutes"],
+                    "walk_km": round(total_walk, 2),
+                    "transfers": 0,
+                })
+
+        # ======================================================================
+        # 5. Rutas vehiculares (si se permite)
         # ======================================================================
         if TransportMode.CAR in allowed_modes:
             self.logger.info("Consultando OSRM para rutas vehiculares...")
@@ -199,7 +379,7 @@ class UrbanDataAgent(BaseAgent):
                 })
 
         # ======================================================================
-        # 4. Datos de riesgo por zona
+        # 6. Datos de riesgo por zona
         # ======================================================================
         hour = request.departure_time.hour
         zone_risks = {

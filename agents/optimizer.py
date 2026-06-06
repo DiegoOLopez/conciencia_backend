@@ -26,8 +26,10 @@ class OptimizerAgent(BaseAgent):
         request = context.get("request")
 
         if not scored_routes:
+            context.set("top_routes", [])
             return AgentResult(
-                success=False, error="No hay rutas scored para optimizar"
+                success=True, 
+                data={"num_optimized": 0, "scores": []}
             )
 
         priority = request.priority if request else TravelPriority.BALANCED
