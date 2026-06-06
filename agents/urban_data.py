@@ -42,15 +42,24 @@ class UrbanDataAgent(BaseAgent):
 
         # ======================================================================
         # 1. Rutas peatonales (OSRM foot profile)
+        # Solo si la distancia es razonable a pie (máx 4 km).
+        # Para rutas largas el usuario necesita transporte, no caminar.
         # ======================================================================
+        MAX_WALK_STANDALONE_KM = 4.0
         if TransportMode.WALK in allowed_modes:
             self.logger.info("Consultando OSRM para rutas peatonales...")
             osrm_walking = await osm_service.get_walking_route(
                 origin_lat, origin_lon, dest_lat, dest_lon
             )
-            walking_routes = OSMService.extract_routes_from_osrm(osrm_walking)
+            walking_routes = OSMService.extract_routes_from_osrm(osrm_walking, "foot")
 
             for i, route in enumerate(walking_routes[:3]):
+                dist = route["distance_km"]
+                if dist > MAX_WALK_STANDALONE_KM:
+                    self.logger.info(
+                        f"Descartando ruta peatonal: {dist:.1f} km (máx {MAX_WALK_STANDALONE_KM} km)"
+                    )
+                    continue  # No agregar rutas irrazonablemente largas
                 candidate_routes.append({
                     "type": "walking",
                     "id": f"walk_{i}",
@@ -58,13 +67,13 @@ class UrbanDataAgent(BaseAgent):
                     "segments": [{
                         "mode": TransportMode.WALK.value,
                         "coordinates": route["coordinates"],
-                        "distance_km": route["distance_km"],
+                        "distance_km": dist,
                         "duration_minutes": route["duration_minutes"],
                         "description": self._describe_walking_route(route),
                     }],
-                    "total_distance_km": route["distance_km"],
+                    "total_distance_km": dist,
                     "total_time_minutes": route["duration_minutes"],
-                    "walk_km": route["distance_km"],
+                    "walk_km": dist,
                     "transfers": 0,
                 })
 
@@ -90,7 +99,7 @@ class UrbanDataAgent(BaseAgent):
                     osrm_w1 = await osm_service.get_walking_route(
                         origin_lat, origin_lon, origin_st["lat"], origin_st["lon"]
                     )
-                    r_w1 = OSMService.extract_routes_from_osrm(osrm_w1)
+                    r_w1 = OSMService.extract_routes_from_osrm(osrm_w1, "foot")
                     walk_to_coords = r_w1[0]["coordinates"] if r_w1 else [
                         [origin_lat, origin_lon],
                         [origin_st["lat"], origin_st["lon"]],
@@ -104,16 +113,20 @@ class UrbanDataAgent(BaseAgent):
                     })
 
                 # Segmento 2: Transporte público
-                transit_mode = (
-                    TransportMode.METRO.value
-                    if origin_st["system"] == "METRO"
-                    else TransportMode.METROBUS.value
-                )
+                system = origin_st.get("system", "METRO")
+                if system == "METRO":
+                    transit_mode = TransportMode.METRO.value
+                elif system == "METROBUS":
+                    transit_mode = TransportMode.METROBUS.value
+                elif system == "LIGHT_RAIL":
+                    transit_mode = TransportMode.LIGHT_RAIL.value
+                else:
+                    transit_mode = TransportMode.METRO.value
                 
                 osrm_t = await osm_service.get_driving_route(
                     origin_st["lat"], origin_st["lon"], dest_st["lat"], dest_st["lon"]
                 )
-                r_t = OSMService.extract_routes_from_osrm(osrm_t)
+                r_t = OSMService.extract_routes_from_osrm(osrm_t, "car")
                 transit_coords = r_t[0]["coordinates"] if r_t else [
                     [origin_st["lat"], origin_st["lon"]],
                     [dest_st["lat"], dest_st["lon"]],
@@ -142,7 +155,7 @@ class UrbanDataAgent(BaseAgent):
                     osrm_w2 = await osm_service.get_walking_route(
                         dest_st["lat"], dest_st["lon"], dest_lat, dest_lon
                     )
-                    r_w2 = OSMService.extract_routes_from_osrm(osrm_w2)
+                    r_w2 = OSMService.extract_routes_from_osrm(osrm_w2, "foot")
                     walk_from_coords = r_w2[0]["coordinates"] if r_w2 else [
                         [dest_st["lat"], dest_st["lon"]],
                         [dest_lat, dest_lon],
@@ -175,8 +188,9 @@ class UrbanDataAgent(BaseAgent):
         # ======================================================================
         if TransportMode.LIGHT_RAIL in allowed_modes:
             self.logger.info("Buscando rutas con Tren Ligero...")
+            # Ampliar radio a 5km: cubre caminata + traslado en metro hasta Taxqueña
             light_rail_route = tlalpan_transit_service.get_light_rail_route(
-                origin_lat, origin_lon, dest_lat, dest_lon
+                origin_lat, origin_lon, dest_lat, dest_lon, max_walk_km=5.0
             )
 
             if light_rail_route:
@@ -191,7 +205,7 @@ class UrbanDataAgent(BaseAgent):
                     osrm_w1 = await osm_service.get_walking_route(
                         origin_lat, origin_lon, origin_st["lat"], origin_st["lon"]
                     )
-                    r_w1 = OSMService.extract_routes_from_osrm(osrm_w1)
+                    r_w1 = OSMService.extract_routes_from_osrm(osrm_w1, "foot")
                     walk_to_coords = r_w1[0]["coordinates"] if r_w1 else [
                         [origin_lat, origin_lon],
                         [origin_st["lat"], origin_st["lon"]],
@@ -208,7 +222,7 @@ class UrbanDataAgent(BaseAgent):
                 osrm_t = await osm_service.get_driving_route(
                     origin_st["lat"], origin_st["lon"], dest_st["lat"], dest_st["lon"]
                 )
-                r_t = OSMService.extract_routes_from_osrm(osrm_t)
+                r_t = OSMService.extract_routes_from_osrm(osrm_t, "car")
                 transit_coords = r_t[0]["coordinates"] if r_t else [
                     [origin_st["lat"], origin_st["lon"]],
                     [dest_st["lat"], dest_st["lon"]],
@@ -232,7 +246,7 @@ class UrbanDataAgent(BaseAgent):
                     osrm_w2 = await osm_service.get_walking_route(
                         dest_st["lat"], dest_st["lon"], dest_lat, dest_lon
                     )
-                    r_w2 = OSMService.extract_routes_from_osrm(osrm_w2)
+                    r_w2 = OSMService.extract_routes_from_osrm(osrm_w2, "foot")
                     walk_from_coords = r_w2[0]["coordinates"] if r_w2 else [
                         [dest_st["lat"], dest_st["lon"]],
                         [dest_lat, dest_lon],
@@ -265,8 +279,9 @@ class UrbanDataAgent(BaseAgent):
         # ======================================================================
         if TransportMode.RTP in allowed_modes:
             self.logger.info("Buscando rutas con RTP...")
+            # Ampliar radio a 3km para rutas largas
             rtp_routes = tlalpan_transit_service.get_rtp_routes(
-                origin_lat, origin_lon, dest_lat, dest_lon
+                origin_lat, origin_lon, dest_lat, dest_lon, max_walk_km=3.0
             )
 
             for idx, rtp_route in enumerate(rtp_routes[:2]):  # Máximo 2 rutas RTP
@@ -281,7 +296,7 @@ class UrbanDataAgent(BaseAgent):
                     osrm_w1 = await osm_service.get_walking_route(
                         origin_lat, origin_lon, origin_st["lat"], origin_st["lon"]
                     )
-                    r_w1 = OSMService.extract_routes_from_osrm(osrm_w1)
+                    r_w1 = OSMService.extract_routes_from_osrm(osrm_w1, "foot")
                     walk_to_coords = r_w1[0]["coordinates"] if r_w1 else [
                         [origin_lat, origin_lon],
                         [origin_st["lat"], origin_st["lon"]],
@@ -298,7 +313,7 @@ class UrbanDataAgent(BaseAgent):
                 osrm_t = await osm_service.get_driving_route(
                     origin_st["lat"], origin_st["lon"], dest_st["lat"], dest_st["lon"]
                 )
-                r_t = OSMService.extract_routes_from_osrm(osrm_t)
+                r_t = OSMService.extract_routes_from_osrm(osrm_t, "car")
                 transit_coords = r_t[0]["coordinates"] if r_t else [
                     [origin_st["lat"], origin_st["lon"]],
                     [dest_st["lat"], dest_st["lon"]],
@@ -322,7 +337,7 @@ class UrbanDataAgent(BaseAgent):
                     osrm_w2 = await osm_service.get_walking_route(
                         dest_st["lat"], dest_st["lon"], dest_lat, dest_lon
                     )
-                    r_w2 = OSMService.extract_routes_from_osrm(osrm_w2)
+                    r_w2 = OSMService.extract_routes_from_osrm(osrm_w2, "foot")
                     walk_from_coords = r_w2[0]["coordinates"] if r_w2 else [
                         [dest_st["lat"], dest_st["lon"]],
                         [dest_lat, dest_lon],
@@ -358,7 +373,7 @@ class UrbanDataAgent(BaseAgent):
             osrm_driving = await osm_service.get_driving_route(
                 origin_lat, origin_lon, dest_lat, dest_lon
             )
-            driving_routes = OSMService.extract_routes_from_osrm(osrm_driving)
+            driving_routes = OSMService.extract_routes_from_osrm(osrm_driving, "car")
 
             for i, route in enumerate(driving_routes[:2]):
                 candidate_routes.append({

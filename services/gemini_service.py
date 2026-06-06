@@ -1,40 +1,46 @@
 """
-ConciencIA — Servicio de Google Gemini.
-Wrapper async para generación de texto con Gemini.
+ConciencIA — Servicio LLM (OpenRouter / Gemini).
+Wrapper async para generación de explicaciones de rutas.
 """
 
 import json
 import logging
 import time
-
-import google.generativeai as genai
+import httpx
 
 from core.config import get_settings
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
 
-
 class GeminiService:
-    """Wrapper sobre Google Generative AI para el Agente Explicador."""
+    """Wrapper para OpenRouter / LLM para el Agente Explicador."""
 
     def __init__(self):
         self._configured = False
-        self._model = None
+        self._api_key = None
+        self._model_name = None
+        self._client: httpx.AsyncClient | None = None
 
     def _ensure_configured(self):
-        """Configura Gemini al primer uso (lazy init)."""
+        """Configura el LLM al primer uso."""
         if not self._configured:
-            if not settings.GEMINI_API_KEY:
+            if settings.OPENROUTER_API_KEY:
+                self._api_key = settings.OPENROUTER_API_KEY
+                self._model_name = settings.OPENROUTER_MODEL
+                logger.info(f"OpenRouter configurado con modelo: {self._model_name}")
+            elif settings.GEMINI_API_KEY:
+                # Opcional: Fallback si quisieras seguir usando la librería de gemini directo
+                pass
+            
+            if not self._api_key:
                 logger.warning(
-                    "GEMINI_API_KEY no configurada. "
+                    "API key no configurada. "
                     "El Agente Explicador usará respuestas template."
                 )
-                return
-            genai.configure(api_key=settings.GEMINI_API_KEY)
-            self._model = genai.GenerativeModel(settings.GEMINI_MODEL)
+            
+            self._client = httpx.AsyncClient(timeout=15.0)
             self._configured = True
-            logger.info(f"Gemini configurado con modelo: {settings.GEMINI_MODEL}")
 
     async def generate_explanations(
         self,
@@ -42,50 +48,68 @@ class GeminiService:
         priority: str,
         departure_hour: int,
     ) -> list[dict]:
-        """
-        Genera explicaciones en lenguaje natural para las rutas.
-
-        Args:
-            routes_data: Lista de dicts con datos de cada ruta (tiempo, riesgo, etc.)
-            priority: Prioridad del usuario (SPEED, SAFETY, BALANCED)
-            departure_hour: Hora de salida (0-23)
-
-        Returns:
-            Lista de dicts con 'explanation' y 'summary' por ruta.
-        """
+        """Genera explicaciones en lenguaje natural para las rutas."""
         self._ensure_configured()
 
-        if not self._model:
+        if not self._api_key:
             return self._generate_template_explanations(routes_data, priority)
 
         prompt = self._build_prompt(routes_data, priority, departure_hour)
 
         try:
             start_time = time.time()
-            response = self._model.generate_content(
-                prompt,
-                generation_config=genai.GenerationConfig(
-                    response_mime_type="application/json",
-                    temperature=0.7,
-                    max_output_tokens=1024,
-                ),
+            
+            headers = {
+                "Authorization": f"Bearer {self._api_key}",
+                "Content-Type": "application/json",
+            }
+            
+            payload = {
+                "model": self._model_name,
+                "messages": [
+                    {"role": "user", "content": prompt}
+                ],
+                "response_format": {"type": "json_object"},
+                "temperature": 0.7,
+                "max_tokens": 1024,
+            }
+            
+            response = await self._client.post(
+                "https://openrouter.ai/api/v1/chat/completions",
+                headers=headers,
+                json=payload
             )
+            response.raise_for_status()
+            
             elapsed_ms = (time.time() - start_time) * 1000
-            logger.info(f"Gemini respondió en {elapsed_ms:.0f}ms")
+            logger.info(f"OpenRouter respondió en {elapsed_ms:.0f}ms")
 
+            data = response.json()
+            content = data["choices"][0]["message"]["content"]
+            
             # Parsear respuesta JSON
-            result = json.loads(response.text)
+            try:
+                result = json.loads(content)
+            except json.JSONDecodeError:
+                # A veces el modelo regresa json con bloques markdown
+                clean_content = content.replace("```json", "").replace("```", "").strip()
+                result = json.loads(clean_content)
 
+            # Dependiendo si viene como array o dict con 'routes'
             if isinstance(result, list) and len(result) >= len(routes_data):
                 return result[:len(routes_data)]
-            elif isinstance(result, dict) and "routes" in result:
-                return result["routes"][:len(routes_data)]
+            elif isinstance(result, dict):
+                # Maneja keys como 'routes' o cualquier otra
+                for key in result:
+                    if isinstance(result[key], list) and len(result[key]) >= len(routes_data):
+                        return result[key][:len(routes_data)]
+                return self._generate_template_explanations(routes_data, priority)
             else:
-                logger.warning("Respuesta de Gemini con formato inesperado, usando template")
+                logger.warning("Respuesta del LLM con formato inesperado, usando template")
                 return self._generate_template_explanations(routes_data, priority)
 
         except Exception as e:
-            logger.error(f"Error al generar explicaciones con Gemini: {e}")
+            logger.error(f"Error al generar explicaciones con LLM: {e}")
             return self._generate_template_explanations(routes_data, priority)
 
     def _build_prompt(
@@ -94,7 +118,7 @@ class GeminiService:
         priority: str,
         departure_hour: int,
     ) -> str:
-        """Construye el prompt para Gemini."""
+        """Construye el prompt para el LLM."""
         time_context = "de noche" if departure_hour >= 22 or departure_hour < 6 else "de día"
 
         routes_text = ""
@@ -116,31 +140,20 @@ El usuario viaja {time_context} (hora: {departure_hour}:00) y su prioridad es: {
 Estas son las 3 rutas calculadas:
 {routes_text}
 
-Genera una respuesta JSON con una lista de objetos. Cada objeto debe tener:
-- "explanation": string con 2-3 oraciones comparando la ruta con las demás. 
-  Menciona trade-offs concretos de tiempo vs seguridad. Habla en español, 
-  tono amigable y conciso.
+Genera un objeto JSON con una propiedad "routes" que contenga una lista de objetos (uno por ruta).
+Cada objeto debe tener:
+- "explanation": string con 2-3 oraciones comparando la ruta con las demás. Menciona trade-offs concretos de tiempo vs seguridad. Habla en español, tono amigable y conciso.
 - "summary": string de máximo 8 palabras resumiendo la ruta.
-- "tags": lista de 1-3 etiquetas descriptivas cortas en español 
-  (ej: "Menos caminata", "Evita zona de riesgo", "Más rápida").
+- "tags": lista de 1-3 etiquetas descriptivas cortas en español (ej: "Menos caminata", "Evita zona de riesgo", "Más rápida").
 
-Ejemplo de formato:
-[
-  {{"explanation": "...", "summary": "...", "tags": ["...", "..."]}},
-  {{"explanation": "...", "summary": "...", "tags": ["...", "..."]}},
-  {{"explanation": "...", "summary": "...", "tags": ["...", "..."]}}
-]
-
-Responde SOLO con el JSON, sin texto adicional."""
+Responde SOLO con el JSON válido, sin texto adicional."""
 
     @staticmethod
     def _generate_template_explanations(
         routes_data: list[dict],
         priority: str,
     ) -> list[dict]:
-        """
-        Fallback: explicaciones template cuando Gemini no está disponible.
-        """
+        """Fallback: explicaciones template."""
         explanations = []
         sorted_routes = sorted(
             enumerate(routes_data),
@@ -197,7 +210,6 @@ Responde SOLO con el JSON, sin texto adicional."""
             })
 
         return explanations
-
 
 # Singleton
 gemini_service = GeminiService()

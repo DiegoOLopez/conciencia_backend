@@ -24,7 +24,9 @@ class Settings(BaseSettings):
         "http://127.0.0.1:8080",
     ]
 
-    # --- Google Gemini ---
+    # --- LLM (OpenRouter / Gemini) ---
+    OPENROUTER_API_KEY: str = Field(default="", description="API key de Open Router")
+    OPENROUTER_MODEL: str = "google/gemini-2.5-flash"
     GEMINI_API_KEY: str = Field(default="", description="API key de Google Gemini")
     GEMINI_MODEL: str = "gemini-2.0-flash"
 

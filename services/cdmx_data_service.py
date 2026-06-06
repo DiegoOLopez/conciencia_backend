@@ -16,25 +16,50 @@ settings = get_settings()
 
 # Datos de ejemplo de zonas con incidencia vial alta en CDMX
 # En producción, esto vendría de datos abiertos reales de SEMOVI/SSC
-ZONAS_ALTO_RIESGO_CDMX = [
+ZONAS_RIESGO_CDMX = [
     # (lat, lon, radio_km, nombre, nivel_riesgo 0-100)
-    (19.4326, -99.1332, 1.0, "Centro Histórico", 65),
-    (19.3937, -99.0906, 1.5, "Iztapalapa Centro", 70),
-    (19.4969, -99.1467, 1.0, "Indios Verdes", 60),
-    (19.3586, -99.1640, 1.0, "Coyoacán Centro", 35),
-    (19.4284, -99.1683, 0.8, "Roma-Condesa", 30),
-    (19.3610, -99.0869, 1.5, "Tláhuac", 72),
-    (19.4437, -99.0686, 1.5, "Nezahualcóyotl (límite)", 68),
-    (19.4833, -99.1200, 1.0, "La Villa", 55),
-    (19.5100, -99.1467, 1.2, "Gustavo A. Madero Norte", 62),
-    (19.3300, -99.1900, 1.0, "Tlalpan Sur", 45),
-    (19.4100, -99.1800, 0.8, "Mixcoac", 40),
-    (19.3700, -99.2600, 1.5, "Santa Fe", 50),
-    (19.4600, -99.0700, 1.2, "Aragón", 58),
-    (19.4900, -99.2100, 1.0, "Azcapotzalco", 52),
-    (19.2836, -99.1369, 0.9, "Huipulco / Tec CCM", 38),
-    (19.2944, -99.1627, 0.9, "Tlalpan Centro", 42),
+    # ── Alta incidencia ──────────────────────────────────────────────────────
+    (19.4442, -99.1271, 0.7, "Tepito",               90),
+    (19.4349, -99.1433, 0.8, "Guerrero (colonia)",    72),
+    (19.4112, -99.1490, 0.9, "Doctores",              68),
+    (19.3937, -99.0906, 1.5, "Iztapalapa Centro",     70),
+    (19.3610, -99.0869, 1.5, "Tláhuac",               72),
+    (19.4437, -99.0686, 1.5, "Nezahualcóyotl",        68),
+    (19.5100, -99.1467, 1.2, "Gustavo A. Madero N.",  62),
+    (19.4969, -99.1467, 1.0, "Indios Verdes",         60),
+    (19.4326, -99.1332, 1.0, "Centro Histórico",      65),
+    (19.4540, -99.1300, 0.7, "Peralvillo",            65),
+    (19.4133, -99.0820, 1.0, "Iztacalco",             60),
+    (19.4600, -99.0700, 1.2, "Aragón",                58),
+    (19.4900, -99.2100, 1.0, "Azcapotzalco",          52),
+    (19.2900, -99.0600, 1.3, "Milpa Alta",            55),
+    (19.3650, -99.0450, 1.2, "Xochimilco (periferia)",50),
+    # ── Riesgo medio ────────────────────────────────────────────────────────
+    (19.3700, -99.2600, 1.5, "Santa Fe",              50),
+    (19.4833, -99.1200, 1.0, "La Villa",              55),
+    (19.4100, -99.1800, 0.8, "Mixcoac",               40),
+    (19.3300, -99.1900, 1.0, "Tlalpan Sur",           45),
+    (19.3586, -99.1640, 1.0, "Coyoacán Centro",       35),
+    (19.4200, -99.1850, 0.8, "San Pedro de los Pinos",40),
+    (19.3900, -99.1650, 0.8, "Del Valle",             32),
+    (19.4050, -99.2050, 0.8, "Narvarte",              30),
+    (19.2836, -99.1369, 0.9, "Huipulco / Tec CCM",   38),
+    (19.2944, -99.1627, 0.9, "Tlalpan Centro",        42),
+    (19.3400, -99.1700, 0.8, "Pedregal de Sto. Domingo", 45),
+    (19.3150, -99.1550, 0.9, "Xochimilco Centro",     38),
+    # ── Bajo riesgo (zonas residenciales/comerciales seguras) ───────────────
+    (19.4349, -99.1887, 0.9, "Polanco",               18),
+    (19.4150, -99.2030, 0.8, "Lomas de Chapultepec",  20),
+    (19.3650, -99.1740, 0.8, "San Ángel",             25),
+    (19.4284, -99.1683, 0.8, "Roma-Condesa",           30),
+    (19.3450, -99.1800, 0.8, "Pedregal de San Ángel",  22),
+    (19.3810, -99.1760, 0.7, "Insurgentes Sur",        28),
+    (19.3970, -99.1750, 0.7, "Mixcoac Residencial",    30),
+    (19.3500, -99.1600, 0.8, "Coyoacán Sur",           28),
 ]
+
+# Alias para compatibilidad con código existente
+ZONAS_ALTO_RIESGO_CDMX = ZONAS_RIESGO_CDMX
 
 
 class CDMXDataService:

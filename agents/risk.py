@@ -114,24 +114,20 @@ class RiskAgent(BaseAgent):
         if night_score > 30:
             factors["night_hour"] = f"Hora {hour}:00 — riesgo nocturno elevado"
 
-        # --- Factor 2: Incidentes viales (zona) ---
-        zone_risk = 0
+        # --- Factor 2 + 5: Zona (incidentes + conflicto) — muestreo completo ---
         if coords:
-            # Evaluar punto medio del segmento
-            mid_idx = len(coords) // 2
-            mid_point = coords[mid_idx] if mid_idx < len(coords) else coords[0]
-            zone_data = cdmx_data_service.get_risk_for_point(
-                mid_point[0], mid_point[1]
-            )
-            zone_risk = zone_data["risk_level"]
+            seg_risk = cdmx_data_service.get_risk_for_segment(coords, hour)
+            zone_risk = seg_risk["risk_score"]
+            if seg_risk["factors"] and seg_risk["factors"] != ["Riesgo base urbano"]:
+                factors["zone"] = f"Zona: {seg_risk['factors'][0]}"
+        else:
+            zone_risk = 15  # baseline
         scores["incidents"] = zone_risk
-        if zone_risk > 40:
-            factors["incidents"] = f"Zona con incidencia vial: {zone_risk:.0f}/100"
+        scores["conflict_zone"] = zone_risk * 0.8
 
         # --- Factor 3: Cruces (estimación por distancia peatonal) ---
         crossing_score = 0
         if mode == TransportMode.WALK.value:
-            # Estimación: ~2 cruces por km en zona urbana
             est_crossings = distance_km * 2
             crossing_score = min(100, est_crossings * 15)
         scores["crossings"] = crossing_score
@@ -141,34 +137,35 @@ class RiskAgent(BaseAgent):
         # --- Factor 4: Distancia de caminata ---
         walk_score = 0
         if mode == TransportMode.WALK.value:
-            # Más de 1km caminando = riesgo creciente
-            if distance_km > 2:
-                walk_score = 80
+            if distance_km > 3:
+                walk_score = 85
+            elif distance_km > 2:
+                walk_score = 70
             elif distance_km > 1:
-                walk_score = 50
+                walk_score = 45
             elif distance_km > 0.5:
-                walk_score = 25
+                walk_score = 20
             else:
-                walk_score = 10
+                walk_score = 8
         scores["walk_distance"] = walk_score
         if walk_score > 30:
             factors["walk_distance"] = f"Caminata de {distance_km:.1f} km"
-
-        # --- Factor 5: Zona conflictiva ---
-        scores["conflict_zone"] = zone_risk * 0.8  # Correlacionado con incidentes
 
         # --- Factor 6: Iluminación (proxy por tipo de vía y hora) ---
         lighting_score = 0
         if hour >= 20 or hour < 6:
             if mode == TransportMode.WALK.value:
-                lighting_score = 50  # Caminata nocturna
-            elif mode in (TransportMode.METRO.value, TransportMode.METROBUS.value):
-                lighting_score = 15  # Transporte público iluminado
+                lighting_score = 55
+            elif mode in (TransportMode.METRO.value, TransportMode.METROBUS.value,
+                          TransportMode.LIGHT_RAIL.value):
+                lighting_score = 10  # Transporte público iluminado
+            else:
+                lighting_score = 25
         scores["lighting"] = lighting_score
         if lighting_score > 30:
-            factors["lighting"] = "Baja iluminación estimada"
+            factors["lighting"] = "Baja iluminación estimada en el tramo"
 
-        # --- Factor 7: Transbordos (se evalúa a nivel de ruta) ---
+        # --- Factor 7: Transbordos (a nivel de ruta) ---
         scores["transfers"] = 0
 
         # Calcular score total ponderado
@@ -182,6 +179,7 @@ class RiskAgent(BaseAgent):
             "scores": scores,
             "factors": factors,
         }
+
 
     def _evaluate_route_level_risk(
         self, route: dict, hour: int

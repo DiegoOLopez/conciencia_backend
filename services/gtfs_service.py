@@ -117,7 +117,57 @@ METROBUS_LINES = {
             {"name": "El Caminero", "lat": 19.3242, "lon": -99.1850},
         ],
     },
+    "Metrobús L4": {
+        "color": "#009E4B",
+        "stations": [
+            {"name": "Buenavista", "lat": 19.4502, "lon": -99.1520},
+            {"name": "Guerrero", "lat": 19.4440, "lon": -99.1448},
+            {"name": "Hidalgo", "lat": 19.4359, "lon": -99.1460},
+            {"name": "Bellas Artes", "lat": 19.4361, "lon": -99.1411},
+            {"name": "20 de Noviembre", "lat": 19.4330, "lon": -99.1360},
+            {"name": "Pino Suárez", "lat": 19.4271, "lon": -99.1328},
+            {"name": "Jamaica", "lat": 19.4088, "lon": -99.1228},
+            {"name": "Hospital Pemex", "lat": 19.3970, "lon": -99.1200},
+            {"name": "Insurgentes Sur", "lat": 19.3830, "lon": -99.1710},
+            {"name": "Dr. Gálvez", "lat": 19.3720, "lon": -99.1715},
+        ],
+    },
 }
+
+# Datos estáticos del Tren Ligero STE (Taxqueña - Xochimilco)
+TREN_LIGERO_LINES = {
+    "Tren Ligero": {
+        "color": "#7B1FA2",
+        "stations": [
+            {"name": "Taxqueña", "lat": 19.3258, "lon": -99.1872},
+            {"name": "Registro Federal", "lat": 19.3195, "lon": -99.1825},
+            {"name": "Estadio Azteca", "lat": 19.3028, "lon": -99.1506},
+            {"name": "Tlalpan", "lat": 19.2897, "lon": -99.1658},
+            {"name": "Huipulco", "lat": 19.2947, "lon": -99.1428},
+            {"name": "Xotepingo", "lat": 19.2825, "lon": -99.1356},
+            {"name": "Nativitas", "lat": 19.2758, "lon": -99.1289},
+            {"name": "Xochimilco", "lat": 19.2577, "lon": -99.1036},
+        ],
+    },
+}
+
+# Línea 12 del Metro (sur-oriente CDMX: Mixcoac - Tláhuac)
+METRO_LINE_12 = {
+    "Línea 12": {
+        "color": "#D4AC0D",
+        "stations": [
+            {"name": "Mixcoac", "lat": 19.3749, "lon": -99.1952},
+            {"name": "Insurgentes Sur", "lat": 19.3698, "lon": -99.1882},
+            {"name": "Hospital 20 de Noviembre", "lat": 19.3620, "lon": -99.1793},
+            {"name": "Zapotitlán", "lat": 19.3300, "lon": -99.0620},
+            {"name": "Nopalera", "lat": 19.3193, "lon": -99.0530},
+            {"name": "Olivos", "lat": 19.3100, "lon": -99.0450},
+            {"name": "Periferico Oriente", "lat": 19.3020, "lon": -99.0380},
+            {"name": "Tláhuac", "lat": 19.2912, "lon": -99.0155},
+        ],
+    },
+}
+
 
 
 class GTFSService:
@@ -143,6 +193,16 @@ class GTFSService:
                         "line": line_name,
                         "color": line_data["color"],
                     })
+            for line_name, line_data in METRO_LINE_12.items():
+                for station in line_data["stations"]:
+                    stations.append({
+                        "name": station["name"],
+                        "lat": station["lat"],
+                        "lon": station["lon"],
+                        "system": "METRO",
+                        "line": line_name,
+                        "color": line_data["color"],
+                    })
             for line_name, line_data in METROBUS_LINES.items():
                 for station in line_data["stations"]:
                     stations.append({
@@ -153,8 +213,19 @@ class GTFSService:
                         "line": line_name,
                         "color": line_data["color"],
                     })
+            for line_name, line_data in TREN_LIGERO_LINES.items():
+                for station in line_data["stations"]:
+                    stations.append({
+                        "name": station["name"],
+                        "lat": station["lat"],
+                        "lon": station["lon"],
+                        "system": "LIGHT_RAIL",
+                        "line": line_name,
+                        "color": line_data["color"],
+                    })
             self._all_stations = stations
         return self._all_stations
+
 
     def find_nearest_stations(
         self,

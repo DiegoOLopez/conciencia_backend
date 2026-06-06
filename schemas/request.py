@@ -25,9 +25,12 @@ class TransportMode(str, Enum):
 
 class TravelPriority(str, Enum):
     """Prioridad del usuario para la optimización de ruta."""
-    SPEED = "SPEED"           # Lo más rápido posible
-    SAFETY = "SAFETY"         # Lo más seguro posible
-    BALANCED = "BALANCED"     # Equilibrio entre rapidez y seguridad
+    SPEED = "SPEED"           # Lo más rápido (legacy)
+    FASTEST = "FASTEST"       # Lo más rápido (OSMnx)
+    SAFETY = "SAFETY"         # Lo más seguro (legacy)
+    BALANCED = "BALANCED"     # Equilibrio (Ambos)
+    SHORTEST = "SHORTEST"     # Más corto en distancia
+    ACCESSIBLE = "ACCESSIBLE" # Más accesible (evita escaleras/mal piso)
 
 
 class Coordinate(BaseModel):

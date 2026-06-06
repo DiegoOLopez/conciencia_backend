@@ -17,6 +17,14 @@ settings = get_settings()
 class OSMService:
     """Interacción con OSRM público y datos de OpenStreetMap."""
 
+    # Velocidades realistas para CDMX (el OSRM público devuelve duraciones de auto
+    # incluso con perfil 'foot', así que recalculamos desde la distancia)
+    SPEED_KMH = {
+        "foot": 4.8,    # Promedio real caminando en ciudad ~4.5-5 km/h
+        "car": 22.0,    # Promedio CDMX con tráfico ~20-25 km/h
+        "bike": 14.0,   # Promedio en bicicleta urbana
+    }
+
     def __init__(self):
         self._client: httpx.AsyncClient | None = None
 
@@ -58,12 +66,17 @@ class OSMService:
             "steps": "true",
             "alternatives": "true" if alternatives else "false",
         }
+        
+        # El servidor público router.project-osrm.org a menudo devuelve rutas
+        # de auto para perfil foot. Usamos routing.openstreetmap.de que tiene
+        # grafos de red separados y precisos por modo.
+        base_url = f"https://routing.openstreetmap.de/routed-{profile}"
+        url = f"{base_url}/route/v1/driving/{coords}"
 
         try:
-            response = await client.get(
-                f"/route/v1/{profile}/{coords}",
-                params=params,
-            )
+            # Quitamos la barra inicial para que reemplace completamente el base_url
+            # del cliente si estuviera configurado, o simplemente enviamos URL completa.
+            response = await client.get(url, params=params)
             response.raise_for_status()
             data = response.json()
 
@@ -102,13 +115,21 @@ class OSMService:
         )
 
     @staticmethod
-    def extract_routes_from_osrm(osrm_response: dict) -> list[dict]:
+    def extract_routes_from_osrm(
+        osrm_response: dict,
+        profile: str = "foot",
+    ) -> list[dict]:
         """
         Extrae rutas limpias de la respuesta OSRM.
+        
+        IMPORTANTE: El OSRM público devuelve duraciones vehiculares incluso
+        para el perfil 'foot'. Recalculamos la duración desde la distancia
+        con velocidades realistas para CDMX.
 
         Returns:
             Lista de dicts con 'coordinates', 'distance_km', 'duration_minutes', 'steps'.
         """
+        speed_kmh = OSMService.SPEED_KMH.get(profile, OSMService.SPEED_KMH["foot"])
         routes = []
         for route in osrm_response.get("routes", []):
             geometry = route.get("geometry", {})
@@ -117,24 +138,30 @@ class OSMService:
             # OSRM devuelve [lon, lat], convertimos a [lat, lon]
             coords_latlon = [[c[1], c[0]] for c in coords]
 
+            distance_km = route.get("distance", 0) / 1000
+            # Recalcular duración con velocidad realista (ignora la de OSRM)
+            duration_minutes = (distance_km / speed_kmh) * 60 if distance_km > 0 else 0
+
             # Extraer pasos con instrucciones
             steps = []
             for leg in route.get("legs", []):
                 for step in leg.get("steps", []):
                     step_coords = step.get("geometry", {}).get("coordinates", [])
                     step_coords_latlon = [[c[1], c[0]] for c in step_coords]
+                    step_dist_km = step.get("distance", 0) / 1000
+                    step_dur = (step_dist_km / speed_kmh) * 60 if step_dist_km > 0 else 0
                     steps.append({
                         "name": step.get("name", ""),
-                        "distance_km": step.get("distance", 0) / 1000,
-                        "duration_minutes": step.get("duration", 0) / 60,
+                        "distance_km": step_dist_km,
+                        "duration_minutes": round(step_dur, 1),
                         "coordinates": step_coords_latlon,
                         "maneuver": step.get("maneuver", {}),
                     })
 
             routes.append({
                 "coordinates": coords_latlon,
-                "distance_km": route.get("distance", 0) / 1000,
-                "duration_minutes": route.get("duration", 0) / 60,
+                "distance_km": round(distance_km, 3),
+                "duration_minutes": round(duration_minutes, 1),
                 "steps": steps,
             })
 
