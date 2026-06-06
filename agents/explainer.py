@@ -81,7 +81,7 @@ class ExplainerAgent(BaseAgent):
             success=True,
             data={
                 "num_explained": len(explained_routes),
-                "used_gemini": bool(gemini_service._model),
+                "used_gemini": bool(gemini_service._client),
             },
         )
 

@@ -66,10 +66,27 @@ class RouteOption(BaseModel):
     )
 
 
+class ParadaTransporte(BaseModel):
+    lat: float
+    lon: float
+    nombre: str
+    tipo: str
+    color: str
+
+class RouteRecommendation(BaseModel):
+    ruta_id: str
+    score: float
+    razon: str
+
 class RouteResponse(BaseModel):
     """Respuesta completa con las 3 mejores rutas."""
     routes: list[RouteOption] = Field(
         description="Las 3 mejores rutas ordenadas por relevancia",
+    )
+    recomendacion: RouteRecommendation | None = None
+    paradas_transporte: list[ParadaTransporte] | None = Field(
+        default=None,
+        description="Lista de paradas de transporte público obtenidas dinámicamente de OSMnx"
     )
     request_id: str = Field(description="ID anónimo de la solicitud (UUID)")
     computed_at: datetime = Field(description="Timestamp de la computación")

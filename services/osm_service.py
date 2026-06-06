@@ -172,6 +172,88 @@ class OSMService:
         if self._client and not self._client.is_closed:
             await self._client.aclose()
 
+    async def get_transit_stops(self, lat_centro: float, lon_centro: float) -> list[dict]:
+        """Obtiene paradas RTP y Tren Ligero desde OSMnx en segundo plano para no bloquear."""
+        import asyncio
+        return await asyncio.to_thread(self._get_transit_stops_sync, lat_centro, lon_centro)
+
+    def _get_transit_stops_sync(self, lat_centro: float, lon_centro: float) -> list[dict]:
+        import osmnx as ox
+        import pandas as pd
+        paradas_output = []
+        
+        # RTP
+        try:
+            todas_paradas = ox.features_from_point(
+                center_point=(lat_centro, lon_centro),
+                tags={"highway": "bus_stop"},
+                dist=3000
+            )
+        except Exception:
+            try:
+                todas_paradas = ox.features_from_point(
+                    center_point=(lat_centro, lon_centro),
+                    tags={"highway": "bus_stop"},
+                    dist=5000
+                )
+            except Exception:
+                todas_paradas = None
+
+        if todas_paradas is not None and not todas_paradas.empty:
+            if "name" in todas_paradas.columns and "operator" in todas_paradas.columns:
+                paradas_rtp = todas_paradas[
+                    todas_paradas["name"].astype(str).str.contains("RTP", na=False) |
+                    todas_paradas["operator"].astype(str).str.contains("RTP", na=False)
+                ]
+            elif "name" in todas_paradas.columns:
+                paradas_rtp = todas_paradas[todas_paradas["name"].astype(str).str.contains("RTP", na=False)]
+            else:
+                paradas_rtp = pd.DataFrame()
+
+            for _, row in paradas_rtp.iterrows():
+                geom = row.geometry
+                lat = geom.y if geom.geom_type == "Point" else geom.centroid.y
+                lon = geom.x if geom.geom_type == "Point" else geom.centroid.x
+                paradas_output.append({
+                    "lat": float(lat),
+                    "lon": float(lon),
+                    "nombre": str(row.get("name", "Parada RTP")),
+                    "tipo": "RTP",
+                    "color": "#188038"
+                })
+
+        # Tren Ligero
+        try:
+            paradas_tren = ox.features_from_point(
+                center_point=(lat_centro, lon_centro),
+                tags={"railway": "tram_stop"},
+                dist=3000
+            )
+        except Exception:
+            try:
+                paradas_tren = ox.features_from_point(
+                    center_point=(lat_centro, lon_centro),
+                    tags={"railway": "tram_stop"},
+                    dist=5000
+                )
+            except Exception:
+                paradas_tren = None
+
+        if paradas_tren is not None and not paradas_tren.empty:
+            for _, row in paradas_tren.iterrows():
+                geom = row.geometry
+                lat = geom.y if geom.geom_type == "Point" else geom.centroid.y
+                lon = geom.x if geom.geom_type == "Point" else geom.centroid.x
+                paradas_output.append({
+                    "lat": float(lat),
+                    "lon": float(lon),
+                    "nombre": str(row.get("name", "Estación Tren Ligero")),
+                    "tipo": "TREN_LIGERO",
+                    "color": "#1A73E8"
+                })
+
+        return paradas_output
+
 
 # Singleton
 osm_service = OSMService()

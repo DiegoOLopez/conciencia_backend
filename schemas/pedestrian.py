@@ -42,8 +42,15 @@ class PedestrianMetadata(BaseModel):
     osmnx_version: str = "1.x"
 
 
+class PedestrianRecommendation(BaseModel):
+    ruta_id: str
+    score: float
+    razon: str
+
+
 class PedestrianResponse(BaseModel):
     rutas: List[PedestrianRoute] = []
+    recomendacion: Optional[PedestrianRecommendation] = None
     metadata: Optional[PedestrianMetadata] = None
     error: bool = False
     codigo: Optional[str] = None

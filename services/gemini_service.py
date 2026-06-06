@@ -112,6 +112,129 @@ class GeminiService:
             logger.error(f"Error al generar explicaciones con LLM: {e}")
             return self._generate_template_explanations(routes_data, priority)
 
+    async def generate_pedestrian_explanations(
+        self,
+        metrics: dict,
+        priority_label: str
+    ) -> dict:
+        """Genera explicaciones para el agente peatonal OSMnx."""
+        self._ensure_configured()
+
+        if not self._api_key:
+            return {
+                "resumen_una_linea": f"Ruta {priority_label}",
+                "explicacion_ia": "Explicación no disponible (API Key faltante).",
+                "tags": ["peatonal"]
+            }
+
+        prompt = f"""Eres un agente experto en ruteo peatonal urbano en CDMX.
+Se calculó una ruta con la prioridad "{priority_label}".
+Métricas de la ruta:
+- Distancia: {metrics['distancia_metros']}m
+- Tiempo: {metrics['tiempo_minutos']} min
+- Escaleras: {"Sí" if metrics['tiene_escaleras'] else "No"}
+- Score de Accesibilidad: {metrics['score_accesibilidad']}/100
+
+Genera un objeto JSON con:
+- "resumen_una_linea": string de máximo 8 palabras resumiendo la ruta.
+- "explicacion_ia": string con 2-3 oraciones que explique por qué es adecuada para la prioridad "{priority_label}". Menciona accesibilidad, infraestructura (banquetas) o distancia/tiempo. ¡OBLIGATORIO: NO menciones seguridad vial, índices de delincuencia, zonas peligrosas ni ningún indicador de riesgo!
+- "tags": lista de 1-3 etiquetas descriptivas cortas en español (ej: "sin escaleras", "más rápida").
+
+Responde SOLO con el JSON válido."""
+
+        try:
+            headers = {"Authorization": f"Bearer {self._api_key}", "Content-Type": "application/json"}
+            payload = {
+                "model": self._model_name,
+                "messages": [{"role": "user", "content": prompt}],
+                "response_format": {"type": "json_object"},
+                "temperature": 0.6,
+                "max_tokens": 512,
+            }
+            
+            response = await self._client.post(
+                "https://openrouter.ai/api/v1/chat/completions",
+                headers=headers,
+                json=payload
+            )
+            response.raise_for_status()
+            
+            content = response.json()["choices"][0]["message"]["content"]
+            try:
+                result = json.loads(content)
+            except:
+                clean_content = content.replace("```json", "").replace("```", "").strip()
+                result = json.loads(clean_content)
+            return result
+        except Exception as e:
+            logger.error(f"Error LLM peatonal: {e}")
+            return {
+                "resumen_una_linea": f"Ruta {priority_label}",
+                "explicacion_ia": "Ruta generada automáticamente.",
+                "tags": []
+            }
+
+    async def generate_pedestrian_recommendation(
+        self,
+        winner_id: str,
+        winner_score: float,
+        routes_metrics: dict,
+        priority: str
+    ) -> str:
+        """Genera la razón de la recomendación de la ruta peatonal."""
+        if not self._client:
+            return "Recomendada en base a la prioridad seleccionada."
+
+        prompt = f"""Eres un experto en movilidad peatonal. Se calcularon 3 rutas y la '{winner_id}' obtuvo el mayor score ({winner_score}) para la prioridad '{priority}'.
+Métricas de todas las rutas:
+{json.dumps(routes_metrics, indent=2)}
+
+Redacta la razón para recomendar la ruta '{winner_id}'.
+Reglas inamovibles:
+- Máximo 2 oraciones.
+- Hablar al usuario de tú, directo.
+- Mencionar exactamente una ventaja basada en datos reales de las métricas (tiempo_minutos, score_accesibilidad, tiene_escaleras, distancia_metros).
+- Mencionar un trade-off si existe (ej. es más larga) — si no hay ninguno relevante, omitirlo.
+- NUNCA mencionar seguridad vial, riesgo, peligrosidad ni delincuencia.
+- Si todas las rutas tienen scores muy similares (diferencia < 2 puntos), dilo: "Las tres rutas son muy similares; cualquiera funciona bien para tu trayecto."
+
+Responde SOLO con un objeto JSON en este formato exacto:
+{{"razon": "Tu texto aquí"}}
+"""
+        
+        try:
+            payload = {
+                "model": "google/gemini-2.5-flash-preview",
+                "messages": [{"role": "user", "content": prompt}],
+                "response_format": {"type": "json_object"},
+                "temperature": 0.3,
+                "max_tokens": 150,
+            }
+            
+            headers = {
+                "Authorization": f"Bearer {self._api_key}",
+                "HTTP-Referer": "http://localhost:8000",
+                "X-Title": "ConciencIA"
+            }
+            
+            response = await self._client.post(
+                "https://openrouter.ai/api/v1/chat/completions",
+                headers=headers,
+                json=payload
+            )
+            response.raise_for_status()
+            
+            content = response.json()["choices"][0]["message"]["content"]
+            try:
+                result = json.loads(content)
+            except:
+                clean_content = content.replace("```json", "").replace("```", "").strip()
+                result = json.loads(clean_content)
+            return result.get("razon", "Ruta óptima seleccionada.")
+        except Exception as e:
+            logger.error(f"Error LLM recomendacion peatonal: {e}")
+            return "Ruta recomendada basada en las métricas de OSMnx."
+
     def _build_prompt(
         self,
         routes_data: list[dict],
